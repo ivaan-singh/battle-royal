@@ -46,13 +46,25 @@ function updatePlayer(dt){
   if(keys.KeyW||keys.ArrowUp)move.add(forward);if(keys.KeyS||keys.ArrowDown)move.sub(forward);if(keys.KeyD||keys.ArrowRight)move.add(right);if(keys.KeyA||keys.ArrowLeft)move.sub(right);
   if(move.lengthSq())move.normalize();const speed=keys.ShiftLeft||keys.ShiftRight?16:9;player.position.addScaledVector(move,speed*dt);player.position.x=Math.max(-240,Math.min(240,player.position.x));player.position.z=Math.max(-240,Math.min(240,player.position.z));velY-=25*dt;player.position.y+=velY*dt;if(player.position.y<=0){player.position.y=0;velY=0;onGround=true}player.rotation.y=yaw;gun.rotation.x=pitch+.1;updateCamera(dt,forward);
 }
-function updateCamera(dt,forward){const target=new THREE.Vector3(player.position.x,player.position.y+1.65,player.position.z);if(cameraMode==='third'){
-  const desired=player.position.clone().addScaledVector(forward,-10);desired.y+=5.5;camera.position.lerp(desired,.22);camera.lookAt(target.clone().addScaledVector(forward,2.5));
-}else if(cameraMode==='first'){
-  camera.position.lerp(new THREE.Vector3(player.position.x,player.position.y+2.05,player.position.z).addScaledVector(forward,.15),.35);camera.lookAt(target.clone().addScaledVector(forward,12));
-}else{
-  const desired=player.position.clone().addScaledVector(forward,10);desired.y+=4.5;camera.position.lerp(desired,.22);camera.lookAt(target);
-}}
+function updateCamera(dt,forward){
+  const target=new THREE.Vector3(player.position.x,player.position.y+1.65,player.position.z);
+  if(cameraMode==='third'){
+    // True third-person: camera is always behind the player's facing direction.
+    const desired=player.position.clone().addScaledVector(forward,-10);desired.y+=5.5;
+    camera.position.lerp(desired,.22);
+    camera.lookAt(target.clone().addScaledVector(forward,2.5));
+  }else if(cameraMode==='first'){
+    // First-person: mouse yaw turns the player and the view together.
+    const head=player.position.clone();head.y+=2.05;
+    camera.position.lerp(head,.35);
+    camera.lookAt(head.clone().addScaledVector(forward,12));
+  }else{
+    // Second-person: camera stays in front, always looking directly back at the player.
+    const desired=player.position.clone().addScaledVector(forward,10);desired.y+=4.5;
+    camera.position.lerp(desired,.22);
+    camera.lookAt(target);
+  }
+}
 let stormTime=120;function updateStorm(dt){stormTime=Math.max(0,stormTime-dt);if(stormTime===0&&stormR>55)stormR-=dt*1.2;ring.geometry.dispose();ring.geometry=new THREE.RingGeometry(Math.max(0,stormR-1.5),stormR,96);stormWall.scale.set(stormR/185,1,stormR/185);if(player.position.length()>stormR&&started){const dmg=dt*7;if(shield>0)shield=Math.max(0,shield-dmg);else health=Math.max(0,health-dmg)}}
 function ui(){document.getElementById('ammo').textContent=ammo;document.getElementById('health').style.width=health+'%';document.getElementById('shield').style.width=shield+'%';document.getElementById('stormBar').style.width=(stormTime/120*100)+'%';document.getElementById('stormText').textContent=Math.floor(stormTime/60)+':'+String(Math.floor(stormTime%60)).padStart(2,'0');document.getElementById('phase').textContent=stormTime>105?'DROP PHASE':stormTime>0?'STORM CLOSING':'FINAL CIRCLE'}
 function setCameraMode(mode){cameraMode=mode;const names={third:'3RD PERSON',first:'1ST PERSON',second:'2ND PERSON'};document.getElementById('cameraLabel').textContent=names[mode];document.querySelectorAll('.modeBtn').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));show('CAMERA: '+names[mode])}
