@@ -32,14 +32,14 @@ const gun=new THREE.Group();const gunBody=new THREE.Mesh(new THREE.BoxGeometry(.
 const bots=[];function makeBot(i){const b=new THREE.Group(),c=new THREE.Mesh(new THREE.CapsuleGeometry(.58,1.1,5,9),mat([0xc95b46,0xb96a32,0x7d63c5,0x3d9d8f][i%4]));c.position.y=1.65;c.castShadow=true;b.add(c);b.position.set((Math.random()-.5)*260,0,(Math.random()-.5)*260);b.userData={hp:100,dir:Math.random()*6.28,next:0,dead:false};scene.add(b);bots.push(b)}for(let i=0;i<24;i++)makeBot(i);
 const keys={};let locked=false,started=false,paused=false,ammo=30,health=100,shield=100,elims=0,velY=0,onGround=true,yaw=0,pitch=-.15,fireCooldown=0,reloading=false,cameraMode='third';const clock=new THREE.Clock();
 addEventListener('keydown',e=>{if(e.code==='Escape'){e.preventDefault();if(started)togglePause();return}if(paused)return;keys[e.code]=true;if(e.code==='KeyR')reloadGun();if(e.code==='Space'&&onGround){velY=9;onGround=false}});addEventListener('keyup',e=>keys[e.code]=false);
-renderer.domElement.addEventListener('click',()=>{if(started&&!paused&&document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock()});document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);document.addEventListener('mousemove',e=>{if(!locked||paused)return;yaw-=e.movementX*.0022;pitch-=e.movementY*.0022;pitch=Math.max(-1.15,Math.min(.7,pitch))});
+renderer.domElement.addEventListener('click',()=>{if(started&&!paused&&document.pointerLockElement!==renderer.domElement)renderer.domElement.requestPointerLock()});document.addEventListener('pointerlockchange',()=>locked=document.pointerLockElement===renderer.domElement);
+document.addEventListener('mousemove',e=>{if(!locked||paused)return;const sensitivity=.0022;yaw-=e.movementX*sensitivity;pitch-=e.movementY*sensitivity;pitch=Math.max(-1.15,Math.min(.7,pitch));player.rotation.y=yaw;});
 function show(t){const b=document.getElementById('banner');b.textContent=t;b.classList.add('show');clearTimeout(show.t);show.t=setTimeout(()=>b.classList.remove('show'),1600)}
 function reloadGun(){if(reloading||ammo===30)return;reloading=true;show('RELOADING');setTimeout(()=>{ammo=30;reloading=false},900)}
 function shoot(){if(!started||paused||!locked||reloading||fireCooldown>0)return;if(ammo<=0){reloadGun();return}ammo--;fireCooldown=.105;const ray=new THREE.Raycaster(),dir=new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));ray.set(camera.position,dir);const hits=ray.intersectObjects(bots.flatMap(b=>b.children),false);if(hits.length){let b=hits[0].object.parent;while(b&&!bots.includes(b))b=b.parent;if(b&&!b.userData.dead){b.userData.hp-=34;flashHit(hits[0].point);if(b.userData.hp<=0){b.userData.dead=true;b.visible=false;elims++;document.getElementById('elims').textContent=elims;document.getElementById('alive').textContent=Math.max(1,25-elims);show('ELIMINATION +1')}}}else flashHit(player.position.clone().add(dir.multiplyScalar(25)))}
 addEventListener('mousedown',e=>{if(e.button===0)shoot()});function flashHit(p){const g=new THREE.Mesh(new THREE.SphereGeometry(.12,8,8),new THREE.MeshBasicMaterial({color:0xffe17a}));g.position.copy(p);scene.add(g);setTimeout(()=>scene.remove(g),70)}
 function updateBots(dt){for(const b of bots){if(b.userData.dead)continue;b.userData.next-=dt;if(b.userData.next<=0){b.userData.next=1+Math.random()*2;b.userData.dir+=(-.9+Math.random()*1.8)}b.rotation.y=b.userData.dir;b.position.x+=Math.sin(b.userData.dir)*dt*4;b.position.z+=Math.cos(b.userData.dir)*dt*4;if(b.position.length()>stormR*.92)b.userData.dir+=Math.PI;if(b.position.distanceTo(player.position)<25&&Math.random()<dt*.08){const dmg=5;if(shield>0)shield=Math.max(0,shield-dmg);else health=Math.max(0,health-dmg)}}}
 function updatePlayer(dt){
-  // Forward is always the direction the player faces; W and Up Arrow move forward, S/Down back, A/Left strafe left, D/Right strafe right.
   const forward=new THREE.Vector3(Math.sin(yaw),0,-Math.cos(yaw));
   const right=new THREE.Vector3(Math.cos(yaw),0,Math.sin(yaw));
   const move=new THREE.Vector3();
@@ -47,12 +47,10 @@ function updatePlayer(dt){
   if(move.lengthSq())move.normalize();const speed=keys.ShiftLeft||keys.ShiftRight?16:9;player.position.addScaledVector(move,speed*dt);player.position.x=Math.max(-240,Math.min(240,player.position.x));player.position.z=Math.max(-240,Math.min(240,player.position.z));velY-=25*dt;player.position.y+=velY*dt;if(player.position.y<=0){player.position.y=0;velY=0;onGround=true}player.rotation.y=yaw;gun.rotation.x=pitch+.1;updateCamera(dt,forward);
 }
 function updateCamera(dt,forward){const target=new THREE.Vector3(player.position.x,player.position.y+1.65,player.position.z);if(cameraMode==='third'){
-  // Smooth camera locked behind the player.
   const desired=player.position.clone().addScaledVector(forward,-10);desired.y+=5.5;camera.position.lerp(desired,.22);camera.lookAt(target.clone().addScaledVector(forward,2.5));
 }else if(cameraMode==='first'){
   camera.position.lerp(new THREE.Vector3(player.position.x,player.position.y+2.05,player.position.z).addScaledVector(forward,.15),.35);camera.lookAt(target.clone().addScaledVector(forward,12));
 }else{
-  // "2nd person" is a front-facing view: the camera stays in front of the player and looks back at them.
   const desired=player.position.clone().addScaledVector(forward,10);desired.y+=4.5;camera.position.lerp(desired,.22);camera.lookAt(target);
 }}
 let stormTime=120;function updateStorm(dt){stormTime=Math.max(0,stormTime-dt);if(stormTime===0&&stormR>55)stormR-=dt*1.2;ring.geometry.dispose();ring.geometry=new THREE.RingGeometry(Math.max(0,stormR-1.5),stormR,96);stormWall.scale.set(stormR/185,1,stormR/185);if(player.position.length()>stormR&&started){const dmg=dt*7;if(shield>0)shield=Math.max(0,shield-dmg);else health=Math.max(0,health-dmg)}}
